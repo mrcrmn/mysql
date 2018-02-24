@@ -3,6 +3,7 @@
 namespace Mrcrmn\Mysql;
 
 use Exception;
+use InvalidArgumentException;
 use Mrcrmn\Mysql\QueryBuilders\InsertQueryBuilder;
 use Mrcrmn\Mysql\QueryBuilders\SelectQueryBuilder;
 use Mrcrmn\Mysql\QueryBuilders\UpdateQueryBuilder;
@@ -22,6 +23,13 @@ class Collector
      * @var string
      */
     public $table;
+
+    /**
+     * Executes dangerous queries if set to true.
+     *
+     * @var bool
+     */
+    public $withForce = false;
 
     /**
      * The QueryBuilder Instance.
@@ -80,6 +88,20 @@ class Collector
     public $selectColumns;
 
     /**
+     * The update string.
+     *
+     * @var string
+     */
+    public $updates = [];
+
+    /**
+     * The insert string.
+     *
+     * @var string
+     */
+    public $inserts = [];
+
+    /**
      * Bool if the selection is disctinct.
      *
      * @var bool
@@ -134,9 +156,13 @@ class Collector
      * @var array
      */
     protected $shouldFlush = [
+        'action' => null,
+        'withForce' => false,
         'table' => null,
         'paramCache' => [],
         'selectColumns' => null,
+        'updates' => [],
+        'inserts' => [],
         'isDistinct' => false,
         'joins' => [],
         'wheres' => [],
@@ -147,21 +173,70 @@ class Collector
     ];
 
     /**
+     * The string to add when a key already exists.
+     *
+     * @var string
+     */
+    protected const PARAM_ADDON = 'aaaaa';
+
+    /**
      * Connects to the Database.
      *
      * @param  string  $host
      * @param  string  $username
      * @param  string  $password
-     * @param  int $port
+     * @param  int     $port
      * @param  string  $database
      *
      * @return bool
      */
     public function connect($host = "127.0.0.1", $username = "root", $password = "", $port = 3306, $database = "")
     {
-        $this->preparer = new Preparer(...$args);
+        $this->preparer = new Preparer(...func_get_args());
 
         return $this;
+    }
+
+    /**
+     * Returns true if there is an active connection.
+     *
+     * @return bool
+     */
+    public function isConnected()
+    {
+        return $this->preparer instanceof Preparer;
+    }
+
+    /**
+     * Adds a $key => $value pair to the parameter cache.
+     *
+     * @param string $key       The key to cache.
+     * @param int|string $value The value to cache.
+     */
+    private function addToParamCache($key, $value)
+    {
+        $key = ':'.$key;
+        while (array_key_exists($key, $this->paramCache)) {
+            $key = $key.self::PARAM_ADDON;
+        }
+        $this->paramCache[$key] = $value;
+
+        return $key;
+    }
+
+    /**
+     * Removes the : and -- from the placeholder key.
+     *
+     * @param  string $key The parameter key.
+     *
+     * @return string
+     */
+    public function getOriginalParamKey($key)
+    {
+        $key = ltrim($key, ':');
+        $key = rtrim($key, self::PARAM_ADDON);
+
+        return $key;
     }
 
     /**
@@ -172,6 +247,79 @@ class Collector
     protected function setTable($table)
     {
         $this->table = $table;
+    }
+
+    /**
+     * Constructs the full insert statement.
+     *
+     * @param array $array The array which holds all column names and the values to insert.
+     */
+    protected function addInsertArray($array)
+    {
+        if (! is_array($array)) {
+            throw new InvalidArgumentException('You need to insert an assoc array.');
+        }
+
+        if (isset($array['table'])) {
+            $this->table = $array['table'];
+            unset($array['table']);
+        }
+
+        if (empty($this->table)) {
+            throw new Exception('No table is set.');
+        }
+
+        $placeholders = [];
+        $columns = array_keys($array);
+
+        foreach ($array as $key => $value)
+        {
+            $placeholders[] = $this->addToParamCache($key, $value);
+        }
+
+        $columns = implode(", ", $columns);
+        $values = implode(", ", $placeholders);
+
+        $this->inserts = [
+            'columns' => $columns,
+            'values' => $values
+        ];
+
+        $this->prepare();
+
+        return $this->run();
+    }
+
+    /**
+     * Constructs the base update statement.
+     *
+     * @param array $array The array which holds all column names and the values to update.
+     */
+    protected function addUpdateArray($array)
+    {
+        if (! is_array($array)) {
+            throw new InvalidArgumentException('You need to insert an assoc array.');
+        }
+
+        if (empty($this->table)) {
+            throw new Exception('No table is set.');
+        }
+
+        $placeholders = [];
+
+        foreach ($array as $key => $value)
+        {
+            $placeholders[] = $this->addToParamCache($key, $value);
+        }
+
+        foreach ($placeholders as $column)
+        {
+            $this->updates[] = sprintf("%s = %s", $this->getOriginalParamKey($column), $column);
+        }
+
+        $this->prepare();
+
+        return $this->run();
     }
 
     /**
@@ -217,8 +365,7 @@ class Collector
         }
 
         // Finally we add the full query to the wheres array.
-        $placeholder = ":" . $column;
-        $this->paramCache[$placeholder] = $value;
+        $placeholder = $this->addToParamCache($column, $value);
 
         // "WHERE|AND|OR column =|>|<|... some_value"
         $this->wheres[] = trim(sprintf("%s %s %s %s", $boolean, $column, $operator, $placeholder));
@@ -228,7 +375,7 @@ class Collector
      * Adds a where in clause to the query.
      *
      * @param string $column  The column name.
-     * @param array $array   An array of values to search for.
+     * @param array $array    An array of values to search for.
      * @param string $boolean Whether or not this is a AND or OR subquery.
      */
     protected function addWhereIn($column, $array, $boolean)
@@ -237,17 +384,23 @@ class Collector
             $boolean = 'WHERE';
         }
 
-        $currentPlaceholders = [];
+        $placeholders = [];
 
-        for ($i=0; $i < count($array); $i++) {
-            $placeholder = ":" . $column . strval($i);
-            $currentPlaceholders[] = $placeholder;
-            $this->paramCache[$placeholder] = $array[$i];
+        foreach ($array as $value) {
+            $placeholders[] = $this->addToParamCache($column, $value);
         }
 
-        $this->wheres[] = trim(sprintf("$boolean %s IN (%s)", $column, implode(",", $currentPlaceholders)));
+        $this->wheres[] = trim(sprintf("$boolean %s IN (%s)", $column, implode(",", $placeholders)));
     }
 
+    /**
+     * Constructs a join subquery.
+     *
+     * @param string $onTable      The table to join.
+     * @param string $secondColumn The column of the second table.
+     * @param string $firstColumn  The column of the current primary table.
+     * @param string $type         Whether its an inner, right or left join.
+     */
     protected function addJoin($onTable, $secondColumn, $firstColumn, $type)
     {
         // If the 2nd parameter is empty whe assume that the column name is referencing the table with the _id convention.
@@ -258,21 +411,42 @@ class Collector
         $this->joins[] = trim(sprintf("%s JOIN %s ON %s.%s = %s.%s", $type, $onTable, $this->table, $firstColumn, $onTable, $secondColumn));
     }
 
+    /**
+     * Constructs a group by subquery
+     *
+     * @param string $column
+     */
     protected function addGroupBy($column)
     {
         $this->groupBys[] = trim(sprintf("GROUP BY %s", $column));
     }
 
+    /**
+     * Constructs an order by subquery.
+     *
+     * @param string $column    The column to toder by.
+     * @param string $direction ASC or DESC.
+     */
     protected function addOrderBy($column, $direction)
     {
         $this->orderBys[] = trim(sprintf("%s %s", $column, strtoupper($direction)));
     }
 
+    /**
+     * Calls the prepare method on the preparer and passes the built query.
+     *
+     * @return void
+     */
     protected function prepare()
     {
         $this->prepared = $this->preparer->prepare($this->buildQuery());
     }
 
+    /**
+     * Executes the prepared statement and returns its result.
+     *
+     * @return $result
+     */
     protected function execPreparedStatement()
     {
         if (empty($this->paramCache)) {
@@ -319,12 +493,16 @@ class Collector
      *
      * @return string
      */
-    public function getQuery(): string
+    public function getQuery()
     {
         $base = $this->buildQuery();
-        foreach ($this->paramCache as $column => $value)
+        foreach (array_reverse($this->paramCache) as $placeholder => $value)
         {
-            $base = str_replace($column, $value, $base);
+            if (is_string($value)) {
+                $value = "'".$value."'";
+            }
+
+            $base = str_replace($placeholder, $value, $base);
         }
         $this->flushAll();
 

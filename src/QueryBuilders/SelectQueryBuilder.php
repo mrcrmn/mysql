@@ -2,11 +2,10 @@
 
 namespace Mrcrmn\Mysql\QueryBuilders;
 
-use \Exception;
+use Exception;
+use Mrcrmn\Mysql\Collector;
 use Mrcrmn\Mysql\QueryBuilders\BaseQueryBuilder;
 use Mrcrmn\Mysql\QueryBuilders\QueryBuilderInterface;
-use Mrcrmn\Mysql\Database;
-
 /**
  * Constructs a select query.
  *
@@ -19,9 +18,9 @@ class SelectQueryBuilder extends BaseQueryBuilder implements QueryBuilderInterfa
     /**
      * The connection instance.
      *
-     * @var \Mrcrmn\Mysql\Database
+     * @var \Mrcrmn\Mysql\Collector
      */
-    protected $db;
+    protected $collector;
 
     /**
      * The query.
@@ -33,11 +32,11 @@ class SelectQueryBuilder extends BaseQueryBuilder implements QueryBuilderInterfa
     /**
      * The constructor needs all parameters which have been collected by the public API.
      *
-     * @param Database $db
+     * @param Collector $collector
      */
-    public function __construct(Database $db)
+    public function __construct(Collector $collector)
     {
-        $this->db = $db;
+        $this->collector = $collector;
     }
 
     /**
@@ -47,16 +46,16 @@ class SelectQueryBuilder extends BaseQueryBuilder implements QueryBuilderInterfa
      */
     public function addBaseSelect()
     {
-        if (empty($this->db->selectColumns)) {
+        if (empty($this->collector->selectColumns)) {
             throw new Exception('Nothing to Select.');
         }
 
-        if (empty($this->db->table)) {
+        if (empty($this->collector->table)) {
             throw new Exception('No table selected.');
         }
 
         // 1. %s-> DISTINCT; 2. %s->column_1, column_2; 3. %s-> table_name
-        return sprintf("SELECT%s %s FROM %s", $this->addDistinct(), $this->db->selectColumns, $this->db->table);
+        return sprintf("SELECT%s %s FROM %s", $this->addDistinct(), $this->collector->selectColumns, $this->collector->table);
     }
 
     /**

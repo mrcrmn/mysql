@@ -29,15 +29,15 @@ class Database extends Collector
     /**
      * Builds the insert statement. Accepts an assoc array [$key => $value].
      *
-     * @param  array $values
+     * @param  array $array
      *
      * @return $this
      */
-    public function insert($values)
-    {
+    public function insert($array)
+     {
         $this->action = 'INSERT';
 
-        return $this;
+        return $this->addInsertArray($array);
     }
 
     /**
@@ -60,23 +60,45 @@ class Database extends Collector
     /**
      * The beginning of the update statement.
      *
+     * @param array $array The columns and new values.
+     * @param bool $force Needs to be true to update dangerous queries.
+     *
      * @return $this
      */
-    public function update()
+    public function update($array, $force = false)
     {
         $this->action = 'UPDATE';
+        $this->withForce = $force;
 
-        return $this;
+        return $this->addUpdateArray($array);
     }
 
     /**
      * The beginning of the update statement.
      *
-     * @return $this
+     * @param bool $force Needs to be set to true, if you want to execute a query without any where clauses.
+     *
+     * @return $result
      */
-    public function delete()
+    public function delete($force = false)
     {
         $this->action = 'DELETE';
+        $this->withForce = $force;
+
+        $this->buildQuery();
+        $this->prepare();
+
+        return $this->run();
+    }
+
+    /**
+     * Setter for the table.
+     * @param  string $table
+     * @return $this
+     */
+    public function into($table)
+    {
+        $this->setTable($table);
 
         return $this;
     }
@@ -86,7 +108,7 @@ class Database extends Collector
      * @param  string $table
      * @return $this
      */
-    public function into($table)
+    public function table($table)
     {
         $this->setTable($table);
 
@@ -287,7 +309,7 @@ class Database extends Collector
      */
     public function get()
     {
-        if (empty($this->connection)) {
+        if (! $this->isConnected()) {
             return $this->getQuery();
         }
 

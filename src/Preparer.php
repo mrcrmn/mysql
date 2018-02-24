@@ -2,15 +2,14 @@
 
 namespace Mrcrmn\Mysql;
 
-use \PDO;
 use Mrcrmn\Mysql\Connectors\DatabaseConnection;
 
 /**
-* The Proxy class to the PDO instance.
-*
-* @package mrcrmn/mysql
-* @author Marco Reimann <marcoreimann@outlook.de>
-*/
+ * Class which proxies the DatabaseConnection class.
+ *
+ * @package mrcrmn/mysql
+ * @author Marco Reimann <marcoreimann@outlook.de>
+ */
 class Preparer
 {
     /**
@@ -36,9 +35,16 @@ class Preparer
         $this->connection = new DatabaseConnection($host, $username, $password, $port, $database);
     }
 
+    /**
+     * Disconnects the database connection.
+     *
+     * @return $this
+     */
     public function disconnect()
     {
         $this->connection = null;
+
+        return $this;
     }
 
     /**
