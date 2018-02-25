@@ -272,8 +272,7 @@ class Collector
         $placeholders = [];
         $columns = array_keys($array);
 
-        foreach ($array as $key => $value)
-        {
+        foreach ($array as $key => $value) {
             $placeholders[] = $this->addToParamCache($key, $value);
         }
 
@@ -284,12 +283,6 @@ class Collector
             'columns' => $columns,
             'values' => $values
         ];
-
-        if (! $this->isConnected()) {
-            return $this->getQuery();
-        }
-
-        $this->prepare();
 
         return $this->run();
     }
@@ -311,21 +304,13 @@ class Collector
 
         $placeholders = [];
 
-        foreach ($array as $key => $value)
-        {
+        foreach ($array as $key => $value) {
             $placeholders[] = $this->addToParamCache($key, $value);
         }
 
-        foreach ($placeholders as $column)
-        {
+        foreach ($placeholders as $column) {
             $this->updates[] = sprintf("%s = %s", $this->getOriginalParamKey($column), $column);
         }
-
-        if (! $this->isConnected()) {
-            return $this->getQuery();
-        }
-
-        $this->prepare();
 
         return $this->run();
     }
@@ -394,6 +379,7 @@ class Collector
 
         $placeholders = [];
 
+        // adds each elemnt of the array to the parameter cache.
         foreach ($array as $value) {
             $placeholders[] = $this->addToParamCache($column, $value);
         }
@@ -457,15 +443,12 @@ class Collector
      */
     protected function execPreparedStatement()
     {
-        if (! $this->isConnected()) {
-            return $this->getQuery();
-        }
-
+        // This might be unnecessary.
         if (empty($this->paramCache)) {
             $result = $this->prepared->execute();
         }
 
-
+        // Executing the statement with the placeholder and its values.
         $result = $this->prepared->execute($this->paramCache);
 
         $this->flushAll();
@@ -509,8 +492,7 @@ class Collector
     public function getQuery()
     {
         $base = $this->buildQuery();
-        foreach (array_reverse($this->paramCache) as $placeholder => $value)
-        {
+        foreach (array_reverse($this->paramCache) as $placeholder => $value) {
             if (is_string($value)) {
                 $value = "'".$value."'";
             }
@@ -529,8 +511,7 @@ class Collector
      */
     protected function flushAll()
     {
-        foreach($this->shouldFlush as $param => $default)
-        {
+        foreach ($this->shouldFlush as $param => $default) {
             $this->{$param} = $default;
         }
 

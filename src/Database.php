@@ -34,7 +34,7 @@ class Database extends Collector
      * @return $this
      */
     public function insert($array)
-     {
+    {
         $this->action = 'INSERT';
 
         return $this->addInsertArray($array);
@@ -84,14 +84,6 @@ class Database extends Collector
     {
         $this->action = 'DELETE';
         $this->withForce = $force;
-
-        $this->buildQuery();
-
-        if (! $this->isConnected()) {
-            return $this->getQuery();
-        }
-
-        $this->prepare();
 
         return $this->run();
     }
@@ -314,13 +306,19 @@ class Database extends Collector
      */
     public function get()
     {
-        if (! $this->isConnected()) {
-            return $this->getQuery();
+        $result = $this->run();
+
+        // If we have no Connection, the result will be the compiled query string.
+        if (is_string($result)) {
+            return $result;
         }
 
-        $this->prepare();
-        $this->run();
+        // If something went wrong, return the error info.
+        if (! $result) {
+            return $this->prepared->errorInfo();
+        }
 
+        // If everything works as expected, we return the result as an associative array.
         return $this->prepared->fetchAll(\PDO::FETCH_ASSOC);
     }
 
@@ -343,19 +341,23 @@ class Database extends Collector
      */
     public function count()
     {
-        $this->prepare();
         $this->run();
-
         return intval($this->prepared->rowCount());
     }
 
     /**
-     * Executes the prepared statement.
+     * Prepared and executes the statement.
      *
-     * @return bool
+     * @return bool|string
      */
     public function run()
     {
+        // We return the full compiled query if there is no database connection for testing purposes.
+        if (! $this->isConnected()) {
+            return $this->getQuery();
+        }
+
+        $this->prepare();
         return $this->execPreparedStatement();
     }
 
