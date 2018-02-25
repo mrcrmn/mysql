@@ -15,6 +15,11 @@
             "Mrcrmn\\Mysql\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Mrcrmn\\Mysql\\Tests\\": "tests/"
+        }
+    },
     "require": {},
     "require-dev": {
         "phpunit/phpunit": "7.0"

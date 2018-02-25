@@ -277,13 +277,17 @@ class Collector
             $placeholders[] = $this->addToParamCache($key, $value);
         }
 
-        $columns = implode(", ", $columns);
-        $values = implode(", ", $placeholders);
+        $columns = implode(",", $columns);
+        $values = implode(",", $placeholders);
 
         $this->inserts = [
             'columns' => $columns,
             'values' => $values
         ];
+
+        if (! $this->isConnected()) {
+            return $this->getQuery();
+        }
 
         $this->prepare();
 
@@ -315,6 +319,10 @@ class Collector
         foreach ($placeholders as $column)
         {
             $this->updates[] = sprintf("%s = %s", $this->getOriginalParamKey($column), $column);
+        }
+
+        if (! $this->isConnected()) {
+            return $this->getQuery();
         }
 
         $this->prepare();
@@ -449,9 +457,14 @@ class Collector
      */
     protected function execPreparedStatement()
     {
+        if (! $this->isConnected()) {
+            return $this->getQuery();
+        }
+
         if (empty($this->paramCache)) {
             $result = $this->prepared->execute();
         }
+
 
         $result = $this->prepared->execute($this->paramCache);
 

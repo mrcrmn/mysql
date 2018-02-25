@@ -7,7 +7,7 @@ use Mrcrmn\Mysql\Collector;
 /**
 * The main database class which hosts the public API.
 *
-* @package mrcrmn/mysql
+* @package Backbone
 * @author Marco Reimann <marcoreimann@outlook.de>
 */
 class Database extends Collector
@@ -86,6 +86,11 @@ class Database extends Collector
         $this->withForce = $force;
 
         $this->buildQuery();
+
+        if (! $this->isConnected()) {
+            return $this->getQuery();
+        }
+
         $this->prepare();
 
         return $this->run();
@@ -241,7 +246,7 @@ class Database extends Collector
      */
     public function join($onTable, $secondColumn = null, $firstColumn = 'id', $type = 'INNER')
     {
-        $this->addJoin($onTable, $secondColumn, $firstColumn = 'id', $type);
+        $this->addJoin($onTable, $secondColumn, $firstColumn, $type);
 
         return $this;
     }
@@ -257,7 +262,7 @@ class Database extends Collector
      */
     public function leftJoin($onTable, $secondColumn = null, $firstColumn = 'id')
     {
-        return $this->join($onTable, $secondColumn, $firstColumn = 'id', 'LEFT OUTER');
+        return $this->join($onTable, $secondColumn, $firstColumn, 'LEFT OUTER');
     }
 
     /**
@@ -269,9 +274,9 @@ class Database extends Collector
      *
      * @return $this
      */
-    public function rightJoin($onTable, $firstColumn = null, $secondColumn)
+    public function rightJoin($onTable, $secondColumn = null, $firstColumn = 'id')
     {
-        return $this->join($onTable, $firstColumn, $secondColumn, 'RIGHT OUTER');
+        return $this->join($onTable, $secondColumn, $firstColumn, 'RIGHT OUTER');
     }
 
     /**

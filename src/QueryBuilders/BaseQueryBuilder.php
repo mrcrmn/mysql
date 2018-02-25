@@ -33,7 +33,7 @@ class BaseQueryBuilder
      */
     public function addUpdate()
     {
-        return sprintf("UPDATE %s SET %s", $this->collector->table, implode(', ', $this->collector->updates));
+        return sprintf("UPDATE %s SET %s", $this->collector->table, implode(',', $this->collector->updates));
     }
 
     /**
@@ -75,8 +75,8 @@ class BaseQueryBuilder
      */
     public function addGroupBys()
     {
-        if (! empty($this->collector->groupyBys)) {
-            return " " . implode(" ", $this->collector->groupyBys);
+        if (! empty($this->collector->groupBys)) {
+            return " " . implode(" ", $this->collector->groupBys);
         }
     }
 
