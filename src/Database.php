@@ -213,7 +213,7 @@ class Database extends Collector
     }
 
     /**
-     * Adds a order by subquery.
+     * Adds a group by subquery.
      *
      * @param  string $column
      *
